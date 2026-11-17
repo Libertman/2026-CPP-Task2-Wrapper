@@ -32,21 +32,21 @@ bool Engine::has_command(const std::string& name) const noexcept {
 }
 
 std::string Engine::execute(const std::string& name, const ArgsMap& args) const {
-    auto it = commands_.find(name);
-    if (it == commands_.end()) {
+    auto found_iter = commands_.find(name);
+    if (found_iter == commands_.end()) {
         throw std::runtime_error("Command not found: " + name);
     }
-    if (it->second == nullptr) {
+    if (found_iter->second == nullptr) {
         throw std::runtime_error("Registered wrapper for command '" + name + "' is null");
     }
-    return it->second->execute(args);
+    return found_iter->second->execute(args);
 }
 
 std::vector<std::string> Engine::get_registered_commands() const {
     std::vector<std::string> names;
     names.reserve(commands_.size());
-    for (const auto& kv : commands_) {
-        names.push_back(kv.first);
+    for (const auto& entry : commands_) {
+        names.push_back(entry.first);
     }
     return names;
 }
@@ -58,4 +58,3 @@ std::size_t Engine::size() const noexcept {
 void Engine::clear() noexcept {
     commands_.clear();
 }
-

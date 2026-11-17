@@ -10,6 +10,13 @@
 #include <utility>
 #include <vector>
 
+class ArgValue;
+
+template <typename Target>
+struct ValueCast {
+    static Target cast(const ArgValue& val);
+};
+
 class ArgValue {
 private:
     std::any value_;
@@ -17,92 +24,98 @@ private:
 
 public:
     ArgValue();
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(int val);                     // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(long val);                    // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(double val);                  // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(float val);                   // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(bool val);                    // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(const char* val);             // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(const std::string& val);      // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgValue(std::string&& val) noexcept;  // NOLINT(google-explicit-constructor)
 
     template <typename T, typename = std::enable_if_t<
         !std::is_same_v<std::decay_t<T>, ArgValue> &&
         !std::is_same_v<std::decay_t<T>, const char*> &&
-        !std::is_same_v<std::decay_t<T>, std::string>>>
-    ArgValue(T&& val) : value_(std::forward<T>(val)) { // NOLINT(google-explicit-constructor)
-        if constexpr (std::is_arithmetic_v<std::decay_t<T>>) {
-            str_repr_ = std::to_string(val);
-        }
-    }
+        !std::is_same_v<std::decay_t<T>, std::string> &&
+        !std::is_arithmetic_v<std::decay_t<T>>>>
+    explicit ArgValue(const T& val) : value_(val) {}
 
     template <typename T>
     T as() const {
-        using Clean = std::decay_t<T>;
-        if constexpr (std::is_same_v<Clean, std::string>) {
-            return str_repr_;
-        } else if constexpr (std::is_same_v<Clean, const char*>) {
-            return str_repr_.c_str();
-        } else if constexpr (std::is_same_v<Clean, int>) {
-            if (value_.type() == typeid(int)) {
-                return std::any_cast<int>(value_);
-            }
-            if (value_.type() == typeid(long)) {
-                return static_cast<int>(std::any_cast<long>(value_));
-            }
-            if (value_.type() == typeid(double)) {
-                return static_cast<int>(std::any_cast<double>(value_));
-            }
-            if (value_.type() == typeid(bool)) {
-                return std::any_cast<bool>(value_) ? 1 : 0;
-            }
-            return !str_repr_.empty() ? std::stoi(str_repr_) : 0;
-        } else if constexpr (std::is_same_v<Clean, long>) {
-            if (value_.type() == typeid(long)) {
-                return std::any_cast<long>(value_);
-            }
-            if (value_.type() == typeid(int)) {
-                return static_cast<long>(std::any_cast<int>(value_));
-            }
-            return !str_repr_.empty() ? std::stol(str_repr_) : 0L;
-        } else if constexpr (std::is_same_v<Clean, double>) {
-            if (value_.type() == typeid(double)) {
-                return std::any_cast<double>(value_);
-            }
-            if (value_.type() == typeid(float)) {
-                return static_cast<double>(std::any_cast<float>(value_));
-            }
-            if (value_.type() == typeid(int)) {
-                return static_cast<double>(std::any_cast<int>(value_));
-            }
-            return !str_repr_.empty() ? std::stod(str_repr_) : 0.0;
-        } else if constexpr (std::is_same_v<Clean, float>) {
-            if (value_.type() == typeid(float)) {
-                return std::any_cast<float>(value_);
-            }
-            if (value_.type() == typeid(double)) {
-                return static_cast<float>(std::any_cast<double>(value_));
-            }
-            if (value_.type() == typeid(int)) {
-                return static_cast<float>(std::any_cast<int>(value_));
-            }
-            return !str_repr_.empty() ? std::stof(str_repr_) : 0.0F;
-        } else if constexpr (std::is_same_v<Clean, bool>) {
-            if (value_.type() == typeid(bool)) {
-                return std::any_cast<bool>(value_);
-            }
-            if (value_.type() == typeid(int)) {
-                return std::any_cast<int>(value_) != 0;
-            }
-            return str_repr_ == "true" || str_repr_ == "1" ||
-                   str_repr_ == "найдено" || str_repr_ == "yes";
-        } else {
-            return std::any_cast<Clean>(value_);
-        }
+        return ValueCast<std::decay_t<T>>::cast(*this);
     }
 
     const std::string& to_string() const noexcept;
     bool has_value() const noexcept;
+    const std::any& raw_any() const noexcept;
+
+    int as_int() const;
+    long as_long() const;
+    double as_double() const;
+    float as_float() const;
+    bool as_bool() const;
+};
+
+template <typename Target>
+Target ValueCast<Target>::cast(const ArgValue& val) {
+    return std::any_cast<Target>(val.raw_any());
+}
+
+template <>
+struct ValueCast<std::string> {
+    static std::string cast(const ArgValue& val) {
+        return val.to_string();
+    }
+};
+
+template <>
+struct ValueCast<const char*> {
+    static const char* cast(const ArgValue& val) {
+        return val.to_string().c_str();
+    }
+};
+
+template <>
+struct ValueCast<int> {
+    static int cast(const ArgValue& val) {
+        return val.as_int();
+    }
+};
+
+template <>
+struct ValueCast<long> {
+    static long cast(const ArgValue& val) {
+        return val.as_long();
+    }
+};
+
+template <>
+struct ValueCast<double> {
+    static double cast(const ArgValue& val) {
+        return val.as_double();
+    }
+};
+
+template <>
+struct ValueCast<float> {
+    static float cast(const ArgValue& val) {
+        return val.as_float();
+    }
+};
+
+template <>
+struct ValueCast<bool> {
+    static bool cast(const ArgValue& val) {
+        return val.as_bool();
+    }
 };
 
 class ArgsMap {
@@ -111,11 +124,17 @@ private:
 
 public:
     ArgsMap() = default;
+    // cppcheck-suppress noExplicitConstructor
     ArgsMap(std::initializer_list<std::pair<std::string, ArgValue>> init); // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgsMap(const std::vector<std::pair<std::string, ArgValue>>& entries); // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgsMap(const std::map<std::string, ArgValue>& map);                  // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgsMap(const std::map<std::string, std::string>& map);               // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgsMap(const std::unordered_map<std::string, ArgValue>& map);        // NOLINT(google-explicit-constructor)
+    // cppcheck-suppress noExplicitConstructor
     ArgsMap(const std::unordered_map<std::string, std::string>& map);     // NOLINT(google-explicit-constructor)
 
     const ArgValue* find(const std::string& name) const noexcept;

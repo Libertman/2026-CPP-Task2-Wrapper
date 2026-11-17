@@ -74,9 +74,9 @@ private:
             const std::string& name = param_names_.at(Index);
             const ArgValue* val = args.find(name);
             if (val == nullptr) {
-                auto it = defaults_.find(name);
-                if (it != defaults_.end()) {
-                    val = &it->second;
+                auto found_default = defaults_.find(name);
+                if (found_default != defaults_.end()) {
+                    val = &found_default->second;
                 }
             }
             if (val == nullptr) {
@@ -116,9 +116,9 @@ private:
                 throw std::invalid_argument("Defaults count does not match function parameter count");
             }
             param_names_.reserve(defaults.size());
-            for (const auto& kv : defaults.entries()) {
-                param_names_.push_back(kv.first);
-                defaults_[kv.first] = kv.second;
+            for (const auto& entry : defaults.entries()) {
+                param_names_.push_back(entry.first);
+                defaults_[entry.first] = entry.second;
             }
         }
 
